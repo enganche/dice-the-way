@@ -1,0 +1,501 @@
+[
+ {
+  "id": 1,
+  "world": 1,
+  "grid": [
+   ".....",
+   ".ooE.",
+   ".o...",
+   ".o...",
+   ".S..."
+  ],
+  "dice": [1, 2, 3],
+  "best": 2,
+  "limit": 5,
+  "solution": "UR",
+  "tutorial": true
+ },
+ {
+  "id": 2,
+  "world": 1,
+  "grid": [
+   ".....",
+   "So6oo",
+   "....o",
+   "....o",
+   "....E"
+  ],
+  "dice": [1, 2, 3],
+  "best": 3,
+  "limit": 6,
+  "solution": "RRD",
+  "tutorial": true
+ },
+ {
+  "id": 3,
+  "world": 1,
+  "grid": [
+   ".oooo",
+   ".o..o",
+   ".Soo4",
+   "....o",
+   "....E"
+  ],
+  "dice": [1, 2, 3],
+  "best": 4,
+  "limit": 7,
+  "solution": "URDD",
+  "tutorial": true
+ },
+ {
+  "id": 4,
+  "world": 1,
+  "grid": [
+   "Sooo",
+   "o..o",
+   "o..o",
+   "5ooo",
+   "E..."
+  ],
+  "dice": [5, 4, 1],
+  "best": 4,
+  "limit": 7,
+  "solution": "RDLD"
+ },
+ {
+  "id": 5,
+  "world": 1,
+  "grid": [
+   "....o",
+   "..Soo",
+   "..o.o",
+   "..o.o",
+   "oE3oo"
+  ],
+  "dice": [6, 4, 5],
+  "best": 4,
+  "limit": 7,
+  "solution": "RDLL"
+ },
+ {
+  "id": 6,
+  "world": 1,
+  "grid": [
+   "6oooS",
+   "o.o.o",
+   "E.o.o",
+   "o.ooo",
+   "ooo.."
+  ],
+  "dice": [1, 4, 2],
+  "best": 5,
+  "limit": 8,
+  "solution": "DLULD"
+ },
+ {
+  "id": 7,
+  "world": 1,
+  "grid": [
+   "oE...",
+   ".3ooo",
+   ".o..o",
+   ".S..o",
+   ".3ooo"
+  ],
+  "dice": [2, 4, 6],
+  "best": 5,
+  "limit": 8,
+  "solution": "DRULU"
+ },
+ {
+  "id": 8,
+  "world": 1,
+  "grid": [
+   "oooooo",
+   "o....o",
+   "o....o",
+   "1oEo.o",
+   "S..o.o",
+   "1ooo#o"
+  ],
+  "dice": [4, 6, 2],
+  "best": 6,
+  "limit": 9,
+  "solution": "DRULLR"
+ },
+ {
+  "id": 9,
+  "world": 1,
+  "grid": [
+   "oooooo",
+   "..o..o",
+   "So6ooo",
+   "o.o...",
+   "o.o...",
+   "oE2..."
+  ],
+  "dice": [6, 5, 3],
+  "best": 6,
+  "limit": 9,
+  "solution": "DRRUDL"
+ },
+ {
+  "id": 10,
+  "world": 1,
+  "grid": [
+   "5ooEo",
+   "S.o.o",
+   "5.o.o",
+   "ooo#o",
+   "....o",
+   "....o"
+  ],
+  "dice": [1, 2, 3],
+  "best": 6,
+  "limit": 9,
+  "solution": "DDRULR"
+ },
+ {
+  "id": 11,
+  "world": 1,
+  "grid": [
+   "oo....",
+   ".ooooo",
+   ".#...E",
+   "oooooo",
+   "o....5",
+   "ooS1o1"
+  ],
+  "dice": [4, 5, 6],
+  "best": 7,
+  "limit": 11,
+  "solution": "RLURDDU"
+ },
+ {
+  "id": 12,
+  "world": 1,
+  "grid": [
+   "...E",
+   "...5",
+   "3oS3",
+   "o..o",
+   "o..o",
+   "oooo"
+  ],
+  "dice": [2, 1, 4],
+  "best": 7,
+  "limit": 11,
+  "solution": "RDLURUU"
+ },
+ {
+  "id": 13,
+  "world": 1,
+  "grid": [
+   "oooooo5",
+   "o..o..o",
+   "2..o..o",
+   "Eo#o..o",
+   "...o..o",
+   "...o..o",
+   "...ooS2"
+  ],
+  "dice": [4, 1, 5],
+  "best": 8,
+  "limit": 12,
+  "solution": "RUDLULDD"
+ },
+ {
+  "id": 14,
+  "world": 1,
+  "grid": [
+   "...ooo",
+   "...6.o",
+   "...o.o",
+   "..oS#o",
+   "...4.o",
+   "ooE1oo"
+  ],
+  "dice": [1, 3, 5],
+  "best": 7,
+  "limit": 11,
+  "solution": "UDURDLL"
+ },
+ {
+  "id": 15,
+  "world": 1,
+  "grid": [
+   ".oooooo",
+   ".o....o",
+   ".o....o",
+   "oEoo5.o",
+   ".o..3.S",
+   ".o..oo1",
+   "ooooo.."
+  ],
+  "dice": [2, 6, 3],
+  "best": 8,
+  "limit": 12,
+  "solution": "DULDRDUL"
+ },
+ {
+  "id": 16,
+  "world": 1,
+  "grid": [
+   ".3o4...",
+   ".o.Eooo",
+   ".#.o..o",
+   "ooo2ooS",
+   ".o.o...",
+   ".oo5oo.",
+   ".o.o..."
+  ],
+  "dice": [6, 3, 2],
+  "best": 9,
+  "limit": 14,
+  "solution": "ULULRDDDU"
+ },
+ {
+  "id": 17,
+  "world": 1,
+  "grid": [
+   ".ooo...",
+   ".o.o...",
+   ".o.4...",
+   ".o.Sooo",
+   ".o.o..#",
+   "21oo2Eo"
+  ],
+  "dice": [1, 3, 5],
+  "best": 9,
+  "limit": 14,
+  "solution": "DLURDDLRR"
+ },
+ {
+  "id": 18,
+  "world": 1,
+  "grid": [
+   ".o.....",
+   "oEoo2oo",
+   "o..o..o",
+   "S..o..o",
+   "3ooooo3",
+   "...o..5",
+   "...oooo"
+  ],
+  "dice": [5, 4, 1],
+  "best": 9,
+  "limit": 14,
+  "solution": "DURRRDDUL"
+ },
+ {
+  "id": 19,
+  "world": 1,
+  "grid": [
+   "2S2oo4.",
+   "o.#..o.",
+   "oooooE5",
+   "......o",
+   "......o",
+   "......o"
+  ],
+  "dice": [4, 1, 5],
+  "best": 9,
+  "limit": 14,
+  "solution": "RRDLURDRL"
+ },
+ {
+  "id": 20,
+  "world": 1,
+  "grid": [
+   "...ooS..",
+   "...4.o..",
+   "...o.o..",
+   "oooo#ooo",
+   "o..o...o",
+   "ooo3E4o3"
+  ],
+  "dice": [2, 3, 1],
+  "best": 11,
+  "limit": 17,
+  "solution": "LDURDRDLLLR"
+ },
+ {
+  "id": 21,
+  "world": 1,
+  "grid": [
+   ".ooooooo",
+   ".......1",
+   "oooooooo",
+   "o......o",
+   "o3o32ooE",
+   "o.S.....",
+   "o.o.....",
+   "ooo....."
+  ],
+  "dice": [1, 2, 3],
+  "best": 10,
+  "limit": 13,
+  "solution": "ULLURUDLLR"
+ },
+ {
+  "id": 22,
+  "world": 1,
+  "grid": [
+   "ooo1Eo",
+   "o..o..",
+   "o#o6oo",
+   "o..o..",
+   "2..o..",
+   "o..o..",
+   "2oo6..",
+   "o..S.."
+  ],
+  "dice": [4, 6, 2],
+  "best": 11,
+  "limit": 15,
+  "solution": "ULUDRUULDUR"
+ },
+ {
+  "id": 23,
+  "world": 1,
+  "grid": [
+   "....oooo",
+   "....2..o",
+   "....o4oo",
+   "....o...",
+   "oSo4o...",
+   "o...2...",
+   "ooo#6Eo."
+  ],
+  "dice": [3, 5, 1],
+  "best": 12,
+  "limit": 16,
+  "solution": "RRUDDURDLLDR"
+ },
+ {
+  "id": 24,
+  "world": 1,
+  "grid": [
+   "3oooo1..",
+   "o.......",
+   "6ooooo1S",
+   "E......o",
+   "o......o",
+   "o......o",
+   "o......o",
+   "ooooooo2"
+  ],
+  "dice": [2, 3, 1],
+  "best": 11,
+  "limit": 15,
+  "solution": "LLDDRULURLD"
+ },
+ {
+  "id": 25,
+  "world": 1,
+  "grid": [
+   "...ooE4",
+   "......2",
+   "..oooo3",
+   "..o.#.o",
+   "..o#ooS",
+   "..5.o..",
+   "..4.o..",
+   "ooooo.."
+  ],
+  "dice": [3, 2, 6],
+  "best": 12,
+  "limit": 16,
+  "solution": "ULDDDRURUUUL"
+ },
+ {
+  "id": 26,
+  "world": 1,
+  "grid": [
+   "..ooo....",
+   "oo1.o....",
+   "o.ooSoooo",
+   "o.6.o.#..",
+   "o.o.5.o..",
+   "o.Eo1o1..",
+   "o.o...o..",
+   "oooooooo."
+  ],
+  "dice": [2, 6, 3],
+  "best": 11,
+  "limit": 15,
+  "solution": "DDRLLUUURDL"
+ },
+ {
+  "id": 27,
+  "world": 1,
+  "grid": [
+   "o4oooo...",
+   "E....oo2o",
+   "o.......o",
+   "2.......o",
+   "o.......o",
+   "S.......o",
+   "o.......o",
+   "o.......o",
+   "ooo24ooo4"
+  ],
+  "dice": [5, 1, 3],
+  "best": 13,
+  "limit": 17,
+  "solution": "UUURRDRRDLLLU"
+ },
+ {
+  "id": 28,
+  "world": 1,
+  "grid": [
+   "oo6o65ooE",
+   "......o.o",
+   "......6.S",
+   "......3oo",
+   "......1.#",
+   "......o.o",
+   "......ooo"
+  ],
+  "dice": [6, 3, 2],
+  "best": 13,
+  "limit": 17,
+  "solution": "ULLLRRDLUDULR"
+ },
+ {
+  "id": 29,
+  "world": 1,
+  "grid": [
+   "........6",
+   "........o",
+   "o.......E",
+   "o.......o",
+   "1ooooo6S1",
+   "o..o.o..o",
+   "oooo#o6o6"
+  ],
+  "dice": [2, 3, 1],
+  "best": 14,
+  "limit": 19,
+  "solution": "RUUDDDLLULRRDU"
+ },
+ {
+  "id": 30,
+  "world": 1,
+  "grid": [
+   "6.......",
+   "o.......",
+   "o.......",
+   "5.......",
+   "o.......",
+   "2.......",
+   "oooooE6o",
+   "o...S..o",
+   "1oooooo3"
+  ],
+  "dice": [5, 6, 4],
+  "best": 14,
+  "limit": 19,
+  "solution": "DLRULLLUUUDRUL"
+ }
+]

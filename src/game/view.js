@@ -1,0 +1,583 @@
+// Three.js presentation of a level: tabletop board, dice, animations and effects.
+
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { CELL } from '../core/rules.js';
+import { DIRS } from '../core/dice.js';
+
+const ROAD_Y = 0.05;          // top of the road surface
+const DICE_SIZE = 0.72;
+const DICE_HALF = DICE_SIZE / 2;
+const DICE_BASE = ROAD_Y + 0.012;
+const ROAD_W = 0.66;
+
+// World 1 palette: warm wood and mint (GDD 11.2).
+const PAL = {
+  wood: '#c98a52', woodDark: '#8f5a30', felt: 0x35a583, road: 0xf7dfae, roadEdge: 0xa9682f,
+  dot: 0xb98f55, stone: 0x66708a, stoneTop: 0x8892aa,
+  point: '#ff5a5f', pointDark: '#d93a4c', solved: '#b9ffd9', solvedDark: '#35c98d',
+  glow: 0x9dffd0, gold: '#ffc93c', ivory: '#f8f1df', pip: '#2b2433',
+};
+
+// ---------- tiny tween system ----------
+const ease = {
+  linear: (t) => t,
+  out: (t) => 1 - (1 - t) * (1 - t),
+  inOut: (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
+  backOut: (t) => 1 + 2.7 * Math.pow(t - 1, 3) + 1.7 * Math.pow(t - 1, 2),
+};
+
+class Tweens {
+  constructor() { this.list = []; }
+  add(duration, fn, easing = ease.linear) {
+    return new Promise((resolve) => this.list.push({ t: 0, duration, fn, easing, resolve }));
+  }
+  update(dt) {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const tw = this.list[i];
+      tw.t += dt;
+      const p = Math.min(1, tw.t / tw.duration);
+      tw.fn(tw.easing(p));
+      if (p >= 1) { this.list.splice(i, 1); tw.resolve(); }
+    }
+  }
+  clear() { const l = this.list; this.list = []; for (const tw of l) tw.resolve(); }
+}
+
+// ---------- canvas textures ----------
+function canvasTex(size, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+const PIPS = {
+  1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]],
+  4: [[0, 0], [2, 0], [0, 2], [2, 2]], 5: [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]],
+  6: [[0, 0], [2, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
+};
+
+function diceFaceTexture(n) {
+  return canvasTex(256, (g, s) => {
+    g.fillStyle = PAL.ivory; g.fillRect(0, 0, s, s);
+    const shade = g.createRadialGradient(s / 2, s / 2, s * 0.2, s / 2, s / 2, s * 0.75);
+    shade.addColorStop(0, 'rgba(255,255,255,0)'); shade.addColorStop(1, 'rgba(190,160,110,0.28)');
+    g.fillStyle = shade; g.fillRect(0, 0, s, s);
+    const pos = [0.27, 0.5, 0.73];
+    for (const [cx, cy] of PIPS[n]) {
+      const x = pos[cx] * s, y = pos[cy] * s, r = s * (n === 1 ? 0.13 : 0.092);
+      g.fillStyle = PAL.pip; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.22)'; g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+
+function tileTexture(kind, n) {
+  return canvasTex(256, (g, s) => {
+    g.clearRect(0, 0, s, s);
+    const pad = 14;
+    const colors = {
+      point: [PAL.point, PAL.pointDark, '#ffffff'],
+      solved: [PAL.solved, PAL.solvedDark, '#ffffff'],
+      end: ['#39405e', '#22273d', PAL.gold],
+      start: ['#ffe2a6', '#e9b765', '#b9793f'],
+    }[kind];
+    const grad = g.createLinearGradient(0, 0, 0, s);
+    grad.addColorStop(0, colors[0]); grad.addColorStop(1, colors[1]);
+    roundRect(g, pad, pad, s - pad * 2, s - pad * 2, 44);
+    g.fillStyle = grad; g.fill();
+    g.lineWidth = 10; g.strokeStyle = kind === 'end' ? PAL.gold : 'rgba(255,255,255,0.75)'; g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (kind === 'point' || kind === 'solved') {
+      g.font = '900 150px "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif';
+      if (kind === 'solved') {
+        g.fillStyle = 'rgba(20,110,75,0.9)'; g.fillText(String(n), s / 2, s / 2 + 8);
+        // check badge
+        g.fillStyle = '#19a56c'; g.beginPath(); g.arc(s - 62, 62, 34, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#fff'; g.lineWidth = 10; g.lineCap = 'round'; g.lineJoin = 'round';
+        g.beginPath(); g.moveTo(s - 78, 62); g.lineTo(s - 66, 75); g.lineTo(s - 46, 50); g.stroke();
+      } else {
+        g.fillStyle = 'rgba(120,20,40,0.55)'; g.fillText(String(n), s / 2 + 4, s / 2 + 14);
+        g.fillStyle = '#fff'; g.fillText(String(n), s / 2, s / 2 + 8);
+      }
+    } else if (kind === 'end') {
+      // checker ring
+      const cells = 4, cs = (s - pad * 2 - 60) / cells, o = pad + 30;
+      for (let y = 0; y < cells; y++) for (let x = 0; x < cells; x++) {
+        g.fillStyle = (x + y) % 2 ? 'rgba(255,255,255,0.92)' : 'rgba(255,201,60,0.95)';
+        roundRect(g, o + x * cs + 3, o + y * cs + 3, cs - 6, cs - 6, 8); g.fill();
+      }
+    } else {
+      g.strokeStyle = colors[2]; g.lineWidth = 12; g.beginPath(); g.arc(s / 2, s / 2, 52, 0, Math.PI * 2); g.stroke();
+    }
+  });
+}
+
+function woodTexture() {
+  const tex = canvasTex(512, (g, s) => {
+    g.fillStyle = PAL.wood; g.fillRect(0, 0, s, s);
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 90; i++) {
+      const y = rnd() * s;
+      g.strokeStyle = rnd() > 0.5 ? `rgba(120,70,30,${0.05 + rnd() * 0.12})` : `rgba(255,220,170,${0.04 + rnd() * 0.1})`;
+      g.lineWidth = 1 + rnd() * 5;
+      g.beginPath(); g.moveTo(0, y);
+      g.bezierCurveTo(s * 0.3, y + rnd() * 14 - 7, s * 0.7, y + rnd() * 14 - 7, s, y + rnd() * 10 - 5);
+      g.stroke();
+    }
+  });
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function glowTexture() {
+  return canvasTex(128, (g, s) => {
+    const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.4, 'rgba(255,255,255,0.45)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, s, s);
+  });
+}
+
+// Local direction of each face value on the canonical dice mesh (top 1, front 2, right 3).
+const LOCAL = { 1: [0, 1, 0], 6: [0, -1, 0], 3: [1, 0, 0], 4: [-1, 0, 0], 2: [0, 0, 1], 5: [0, 0, -1] };
+const _m = new THREE.Matrix4();
+function quatFor(o, out) {
+  const lr = LOCAL[o[2]], lt = LOCAL[o[0]], lf = LOCAL[o[1]];
+  _m.set(lr[0], lr[1], lr[2], 0, lt[0], lt[1], lt[2], 0, lf[0], lf[1], lf[2], 0, 0, 0, 0, 1);
+  return out.setFromRotationMatrix(_m);
+}
+const ROLL_AXIS = {
+  R: { axis: new THREE.Vector3(0, 0, 1), sign: -1 },
+  L: { axis: new THREE.Vector3(0, 0, 1), sign: 1 },
+  D: { axis: new THREE.Vector3(1, 0, 0), sign: 1 },
+  U: { axis: new THREE.Vector3(1, 0, 0), sign: -1 },
+};
+
+export class View {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.tweens = new Tweens();
+    this.insets = { top: 190, bottom: 120 };
+    this.running = false;
+    this.time = 0;
+    this.level = null;
+
+    const mobile = matchMedia('(pointer: coarse)').matches;
+    const r = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' }));
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    r.outputColorSpace = THREE.SRGBColorSpace;
+    r.toneMapping = THREE.NeutralToneMapping;
+    r.toneMappingExposure = 0.92;
+    r.shadowMap.enabled = true;
+    r.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = (this.scene = new THREE.Scene());
+    const pmrem = new THREE.PMREMGenerator(r);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.35;
+    pmrem.dispose();
+
+    this.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 200);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x9a7455, 0.6));
+    const sun = (this.sun = new THREE.DirectionalLight(0xfff0d8, 1.9));
+    sun.position.set(-4.5, 10, 5.5);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4;
+    scene.add(sun);
+    const rim = new THREE.DirectionalLight(0xa8dcff, 0.7);
+    rim.position.set(4, 5, -7);
+    scene.add(rim);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.ShadowMaterial({ opacity: 0.32 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.62; ground.receiveShadow = true;
+    scene.add(ground);
+
+    this.woodTex = woodTexture();
+    this.glowTex = glowTexture();
+    this.tileTex = { end: tileTexture('end'), start: tileTexture('start') };
+    for (let n = 1; n <= 6; n++) { this.tileTex['p' + n] = tileTexture('point', n); this.tileTex['s' + n] = tileTexture('solved', n); }
+
+    this.boardGroup = new THREE.Group();
+    scene.add(this.boardGroup);
+    this._buildDice();
+    this._buildParticles();
+    this._buildHint();
+
+    this._loop = this._loop.bind(this);
+    this.resize();
+  }
+
+  // ---------- construction ----------
+  _buildDice() {
+    const order = [3, 4, 1, 6, 2, 5]; // +x -x +y -y +z -z
+    const mats = order.map((n) => new THREE.MeshPhysicalMaterial({
+      map: diceFaceTexture(n), roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12,
+    }));
+    const mesh = new THREE.Mesh(new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 5, 0.11), mats);
+    mesh.castShadow = true;
+    this.diceMesh = mesh;
+    this.dice = new THREE.Group();
+    this.dice.add(mesh);
+    this.scene.add(this.dice);
+    this.diceO = [1, 2, 3];
+  }
+
+  _buildParticles() {
+    this.particles = [];
+    const geo = new THREE.IcosahedronGeometry(0.06, 1);
+    for (let i = 0; i < 28; i++) {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+      m.visible = false;
+      this.scene.add(m);
+      this.particles.push({ mesh: m, busy: false });
+    }
+  }
+
+  _buildHint() {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0.26); shape.lineTo(0.22, 0); shape.lineTo(0.09, 0); shape.lineTo(0.09, -0.22);
+    shape.lineTo(-0.09, -0.22); shape.lineTo(-0.09, 0); shape.lineTo(-0.22, 0); shape.closePath();
+    const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color: 0xff4d57, transparent: true, opacity: 0.95, depthTest: false }));
+    mesh.rotation.x = -Math.PI / 2;
+    const holder = new THREE.Group();
+    holder.add(mesh); holder.visible = false; holder.renderOrder = 5;
+    this.hint = holder; this.hintDir = null;
+    this.scene.add(holder);
+  }
+
+  cellPos(x, y, out = new THREE.Vector3()) {
+    return out.set(x - (this.level.w - 1) / 2, 0, y - (this.level.h - 1) / 2);
+  }
+
+  loadLevel(level) {
+    this.tweens.clear();
+    this.level = level;
+    const g = this.boardGroup;
+    while (g.children.length) {
+      const c = g.children.pop();
+      c.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.dispose) o.material.dispose(); });
+    }
+    const { w, h } = level;
+    const std = (opts) => new THREE.MeshStandardMaterial(opts);
+    const add = (mesh, cast = false, receive = true) => { mesh.castShadow = cast; mesh.receiveShadow = receive; g.add(mesh); return mesh; };
+
+    // Board: wooden slab with a felt mat.
+    this.woodTex.repeat.set(Math.max(1, w / 4), 1);
+    const base = add(new THREE.Mesh(new RoundedBoxGeometry(w + 1.3, 0.56, h + 1.3, 4, 0.16), std({ map: this.woodTex, roughness: 0.55 })), true);
+    base.position.y = -0.33;
+    const felt = add(new THREE.Mesh(new RoundedBoxGeometry(w + 0.5, 0.08, h + 0.5, 3, 0.04), std({ color: PAL.felt, roughness: 0.95 })));
+    felt.position.y = -0.04;
+
+    // Roads (merged), with a darker carved edge underneath.
+    const roadGeos = [], edgeGeos = [], dotGeos = [];
+    const isRoadLike = (x, y) => x >= 0 && y >= 0 && x < w && y < h && level.cells[y * w + x] !== CELL.EMPTY;
+    const box = (list, sx, sy, sz, px, py, pz) => { const b = new THREE.BoxGeometry(sx, sy, sz); b.translate(px, py, pz); list.push(b); };
+    const p = new THREE.Vector3();
+    const conn = (1 - ROAD_W) / 2;
+    this.tiles = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = level.cells[y * w + x];
+      if (c === CELL.EMPTY) continue;
+      this.cellPos(x, y, p);
+      box(roadGeos, ROAD_W, ROAD_Y, ROAD_W, p.x, ROAD_Y / 2, p.z);
+      box(edgeGeos, ROAD_W + 0.12, ROAD_Y * 0.55, ROAD_W + 0.12, p.x, ROAD_Y * 0.275, p.z);
+      for (const d of [DIRS.R, DIRS.D]) {
+        if (!isRoadLike(x + d.dx, y + d.dy)) continue;
+        const len = conn * 2 + 0.002;
+        const cx = p.x + d.dx * 0.5, cz = p.z + d.dy * 0.5;
+        box(roadGeos, d.dx ? len : ROAD_W, ROAD_Y, d.dx ? ROAD_W : len, cx, ROAD_Y / 2, cz);
+        box(edgeGeos, d.dx ? len : ROAD_W + 0.12, ROAD_Y * 0.55, d.dx ? ROAD_W + 0.12 : len, cx, ROAD_Y * 0.275, cz);
+      }
+      if (c === CELL.ROAD) {
+        const dot = new THREE.CylinderGeometry(0.075, 0.075, 0.012, 16);
+        dot.translate(p.x, ROAD_Y + 0.006, p.z); dotGeos.push(dot);
+      } else if (c === CELL.OBSTACLE) {
+        const rot = ((x * 7 + y * 13) % 5 - 2) * 0.09;
+        const rock = add(new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.56, 0.7, 3, 0.1), std({ color: PAL.stone, roughness: 0.8 })), true);
+        rock.position.set(p.x, ROAD_Y + 0.28, p.z); rock.rotation.y = rot;
+        const cap = add(new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.16, 0.44, 2, 0.06), std({ color: PAL.stoneTop, roughness: 0.7 })), true);
+        cap.position.set(p.x, ROAD_Y + 0.62, p.z); cap.rotation.y = rot + 0.5;
+      }
+    }
+    add(new THREE.Mesh(mergeGeometries(edgeGeos), std({ color: PAL.roadEdge, roughness: 0.7 })));
+    add(new THREE.Mesh(mergeGeometries(roadGeos), std({ color: PAL.road, roughness: 0.6 })), false);
+    if (dotGeos.length) add(new THREE.Mesh(mergeGeometries(dotGeos), std({ color: PAL.dot, roughness: 0.6 })));
+
+    // Decal tiles: start, end, points.
+    const decal = (tex, x, y, size = 0.84) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), std({ map: tex, transparent: true, roughness: 0.45, emissive: 0x000000, emissiveMap: tex }));
+      m.rotation.x = -Math.PI / 2;
+      this.cellPos(x, y, m.position); m.position.y = ROAD_Y + 0.006;
+      m.receiveShadow = true; g.add(m);
+      return m;
+    };
+    const glow = (x, y, color, size = 1.7) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: this.glowTex, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      this.cellPos(x, y, m.position); m.position.y = ROAD_Y + 0.02;
+      g.add(m);
+      return m;
+    };
+    decal(this.tileTex.start, level.start.x, level.start.y, 0.6);
+    this.endTile = decal(this.tileTex.end, level.end.x, level.end.y);
+    this.endGlow = glow(level.end.x, level.end.y, 0xffc62e, 1.5);
+    this.endReady = false;
+    // Flag at the corner of the end tile.
+    const fp = this.cellPos(level.end.x, level.end.y);
+    const pole = add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.95, 8), std({ color: 0xf4efe6, roughness: 0.4 })), true);
+    pole.position.set(fp.x - 0.4, ROAD_Y + 0.475, fp.z - 0.4);
+    const flagShape = new THREE.Shape(); flagShape.moveTo(0, 0); flagShape.lineTo(0.42, 0.14); flagShape.lineTo(0, 0.28); flagShape.closePath();
+    const flag = add(new THREE.Mesh(new THREE.ShapeGeometry(flagShape), std({ color: 0xffc93c, roughness: 0.5, side: THREE.DoubleSide })), true);
+    flag.position.set(fp.x - 0.4, ROAD_Y + 0.66, fp.z - 0.4);
+    this.flag = flag;
+
+    this.pointTiles = level.points.map((pt) => ({
+      tile: decal(this.tileTex['p' + pt.n], pt.x, pt.y),
+      glow: glow(pt.x, pt.y, PAL.glow),
+      solved: false, n: pt.n, x: pt.x, y: pt.y,
+    }));
+
+    // Shadow frustum + camera.
+    const span = Math.max(w, h) / 2 + 2.2;
+    const sc = this.sun.shadow.camera;
+    sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 40;
+    sc.updateProjectionMatrix();
+
+    this.setDice(level.start.x, level.start.y, level.dice);
+    this.dice.scale.set(1, 1, 1);
+    this.showHint(null);
+    this.fitCamera();
+  }
+
+  setDice(x, y, o) {
+    this.diceO = o.slice();
+    this.cellPos(x, y, this.dice.position);
+    this.dice.position.y = DICE_BASE + DICE_HALF;
+    quatFor(o, this.diceMesh.quaternion);
+    this.diceCell = { x, y };
+  }
+
+  // ---------- camera ----------
+  setInsets(top, bottom) { this.insets = { top, bottom }; if (this.level) this.fitCamera(); }
+
+  resize() {
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    this.width = w; this.height = h;
+    this.renderer.setSize(w, h, false);
+    if (this.level) this.fitCamera();
+  }
+
+  fitCamera() {
+    const cam = this.camera, W = this.width, H = this.height, lv = this.level;
+    cam.aspect = W / H;
+    cam.clearViewOffset();
+    const az = THREE.MathUtils.degToRad(9), el = THREE.MathUtils.degToRad(56);
+    const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+    const hw = lv.w / 2 + 0.75, hh = lv.h / 2 + 0.75;
+    const corners = [];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [-0.5, 1.0]) corners.push(new THREE.Vector3(sx * hw, y, sz * hh));
+    const top = Math.min(this.insets.top, H * 0.4), bottom = Math.min(this.insets.bottom, H * 0.3);
+    const availY = ((H - top - bottom) / H) * 0.97;
+    const v = new THREE.Vector3();
+    let range = null;
+    const measure = (dist) => {
+      cam.position.copy(dir).multiplyScalar(dist);
+      cam.lookAt(0, 0, 0);
+      cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+      let minX = 9, maxX = -9, minY = 9, maxY = -9;
+      for (const c of corners) {
+        v.copy(c).project(cam);
+        minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+      }
+      range = { minX, maxX, minY, maxY };
+      return Math.max(Math.abs(minX), Math.abs(maxX)) <= 0.96 && (maxY - minY) / 2 <= availY;
+    };
+    let lo = 3, hi = 120;
+    for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (measure(mid)) hi = mid; else lo = mid; }
+    measure(hi);
+    // Centre the board inside the area left free by the HUD.
+    const windowCentre = (bottom - top) / H;
+    const delta = windowCentre - (range.maxY + range.minY) / 2;
+    cam.setViewOffset(W, H, 0, (delta * H) / 2, W, H);
+    cam.updateProjectionMatrix();
+  }
+
+  // ---------- animations ----------
+  /** Roll through the given steps. onStep(step, index) fires as each cell is reached. */
+  async rollSteps(steps, dir, onStep) {
+    const { axis, sign } = ROLL_AXIS[dir];
+    const q0 = new THREE.Quaternion(), qr = new THREE.Quaternion();
+    const from = new THREE.Vector3(), to = new THREE.Vector3();
+    const dur = steps.length === 1 ? 0.17 : Math.max(0.085, 0.13 - steps.length * 0.006);
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      from.copy(this.dice.position); from.y = DICE_BASE + DICE_HALF;
+      this.cellPos(st.x, st.y, to); to.y = from.y;
+      q0.copy(this.diceMesh.quaternion);
+      const easing = steps.length === 1 ? ease.inOut : i === 0 ? ((t) => t * (0.6 + 0.4 * t)) : ease.linear;
+      await this.tweens.add(dur, (t) => {
+        const a = t * Math.PI / 2;
+        qr.setFromAxisAngle(axis, sign * a);
+        this.diceMesh.quaternion.copy(qr).multiply(q0);
+        this.dice.position.lerpVectors(from, to, t);
+        this.dice.position.y = DICE_BASE + DICE_HALF * (Math.sin(a) + Math.cos(a));
+      }, easing);
+      this.setDice(st.x, st.y, st.o);
+      if (onStep) onStep(st, i);
+    }
+  }
+
+  /** Dust + squash when the dice comes to rest. */
+  land() {
+    const p = this.dice.position;
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + Math.random();
+      this._emit(p.x + Math.cos(a) * 0.3, DICE_BASE + 0.05, p.z + Math.sin(a) * 0.3, Math.cos(a) * 0.9, 0.5, Math.sin(a) * 0.9, 0xf3e3c3, 0.42, 1.6);
+    }
+    return this.tweens.add(0.22, (t) => {
+      const s = 1 - Math.sin(t * Math.PI) * 0.1;
+      this.dice.scale.set(1 + (1 - s) * 0.6, s, 1 + (1 - s) * 0.6);
+      this.dice.position.y = DICE_BASE + DICE_HALF * s;
+    });
+  }
+
+  /** Small nudge for a blocked input. */
+  bump(dir) {
+    const { dx, dy } = DIRS[dir];
+    const base = this.cellPos(this.diceCell.x, this.diceCell.y);
+    const { axis, sign } = ROLL_AXIS[dir];
+    const q0 = quatFor(this.diceO, new THREE.Quaternion()), qr = new THREE.Quaternion();
+    return this.tweens.add(0.2, (t) => {
+      const k = Math.sin(t * Math.PI);
+      this.dice.position.x = base.x + dx * 0.1 * k;
+      this.dice.position.z = base.z + dy * 0.1 * k;
+      qr.setFromAxisAngle(axis, sign * 0.16 * k);
+      this.diceMesh.quaternion.copy(qr).multiply(q0);
+    });
+  }
+
+  shakeDice() {
+    const base = this.cellPos(this.diceCell.x, this.diceCell.y);
+    return this.tweens.add(0.36, (t) => {
+      this.dice.position.x = base.x + Math.sin(t * Math.PI * 6) * 0.06 * (1 - t);
+    });
+  }
+
+  pointSolved(index) {
+    const pt = this.pointTiles[index];
+    pt.solved = true;
+    pt.tile.material.map = pt.tile.material.emissiveMap = this.tileTex['s' + pt.n];
+    pt.tile.material.emissive.set(0x3ad49a);
+    pt.tile.material.needsUpdate = true;
+    const p = this.cellPos(pt.x, pt.y);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      this._emit(p.x + Math.cos(a) * 0.35, ROAD_Y + 0.1, p.z + Math.sin(a) * 0.35, Math.cos(a) * 1.3, 2.2 + Math.random(), Math.sin(a) * 1.3, 0xbfffe0, 0.7, 1.2);
+    }
+    this.tweens.add(0.5, (t) => {
+      pt.glow.material.opacity = 0.7 * (1 - t) + 0.28;
+      pt.glow.scale.setScalar(1 + (1 - t) * 0.9);
+      pt.tile.scale.setScalar(1 + Math.sin(t * Math.PI) * 0.18);
+    }, ease.out);
+  }
+
+  pointMismatch(index) {
+    const pt = this.pointTiles[index];
+    const c = pt.tile.material.color;
+    this.shakeDice();
+    return this.tweens.add(0.45, (t) => {
+      const k = Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t);
+      c.setRGB(1, 1 - k * 0.75, 1 - k * 0.75);
+      pt.tile.material.emissive.setRGB(k * 0.9, 0, 0);
+      pt.tile.position.x = this.cellPos(pt.x, pt.y).x + Math.sin(t * Math.PI * 8) * 0.04 * (1 - t);
+    });
+  }
+
+  endNotReady() {
+    const x0 = this.cellPos(this.level.end.x, this.level.end.y).x;
+    this.shakeDice();
+    return this.tweens.add(0.4, (t) => { this.endTile.position.x = x0 + Math.sin(t * Math.PI * 8) * 0.04 * (1 - t); });
+  }
+
+  setEndReady(ready) { this.endReady = ready; if (!ready) this.endGlow.material.opacity = 0; }
+
+  celebrate() {
+    const p = this.dice.position;
+    for (let i = 0; i < 20; i++) {
+      const a = Math.random() * Math.PI * 2, s = 0.8 + Math.random() * 1.6;
+      this._emit(p.x, DICE_BASE + 0.4, p.z, Math.cos(a) * s, 2.5 + Math.random() * 2, Math.sin(a) * s, [0xffc93c, 0xff5a5f, 0x9dffd0, 0xffffff][i % 4], 0.9, 1.3);
+    }
+    return this.tweens.add(0.7, (t) => {
+      this.dice.position.y = DICE_BASE + DICE_HALF + Math.sin(t * Math.PI) * 0.7;
+      this.diceMesh.rotation.y += 0.25 * (1 - t);
+    }, ease.linear).then(() => quatFor(this.diceO, this.diceMesh.quaternion));
+  }
+
+  showHint(dir) {
+    this.hintDir = dir;
+    this.hint.visible = !!dir;
+    if (dir) this.hint.rotation.y = { U: 0, L: Math.PI / 2, D: Math.PI, R: -Math.PI / 2 }[dir];
+  }
+
+  _emit(x, y, z, vx, vy, vz, color, life, scale) {
+    const p = this.particles.find((q) => !q.busy);
+    if (!p) return;
+    p.busy = true;
+    const m = p.mesh;
+    m.material.color.set(color); m.visible = true;
+    const x0 = x, y0 = y, z0 = z;
+    this.tweens.add(life, (t) => {
+      m.position.set(x0 + vx * t * life, y0 + vy * t * life - 4 * t * t * life * life, z0 + vz * t * life);
+      m.scale.setScalar(scale * (0.6 + t * 0.8));
+      m.material.opacity = 0.85 * (1 - t);
+    }, ease.out).then(() => { m.visible = false; p.busy = false; });
+  }
+
+  // ---------- loop ----------
+  start() { if (this.running) return; this.running = true; this.last = performance.now(); requestAnimationFrame(this._loop); }
+  stop() { this.running = false; }
+
+  _loop(now) {
+    if (!this.running) return;
+    const dt = Math.min(0.05, (now - this.last) / 1000);
+    this.last = now; this.time += dt;
+    this.tweens.update(dt);
+    const t = this.time;
+    if (this.level) {
+      if (this.endReady) {
+        this.endGlow.material.opacity = 0.3 + Math.sin(t * 4) * 0.14;
+        this.endGlow.scale.setScalar(1 + Math.sin(t * 4) * 0.08);
+      }
+      this.flag.rotation.y = Math.sin(t * 2.2) * 0.35;
+      for (const pt of this.pointTiles) if (pt.solved) pt.tile.material.emissiveIntensity = 0.45 + Math.sin(t * 3 + pt.x) * 0.15;
+      if (this.hintDir) {
+        const { dx, dy } = DIRS[this.hintDir];
+        const base = this.cellPos(this.diceCell.x, this.diceCell.y);
+        const k = 0.78 + (Math.sin(t * 5) * 0.5 + 0.5) * 0.22;
+        this.hint.position.set(base.x + dx * k, ROAD_Y + 0.08, base.z + dy * k);
+      }
+    }
+    this.renderer.render(this.scene, this.camera);
+    requestAnimationFrame(this._loop);
+  }
+}

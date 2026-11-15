@@ -1,0 +1,11 @@
+{
+  "name": "Dice The Way",
+  "short_name": "Dice The Way",
+  "description": "Roll the dice across the board and match every numbered point.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070c1d",
+  "theme_color": "#070c1d",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
