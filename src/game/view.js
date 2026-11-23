@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL } from '../core/rules.js';
-import { DIRS } from '../core/dice.js';
+import { DIRS, DIR_KEYS } from '../core/dice.js';
 
 const ROAD_Y = 0.05;          // top of the road surface
 const DICE_SIZE = 0.72;
@@ -13,13 +13,22 @@ const DICE_HALF = DICE_SIZE / 2;
 const DICE_BASE = ROAD_Y + 0.012;
 const ROAD_W = 0.66;
 
-// World 1 palette: warm wood and mint (GDD 11.2).
+// Shared palette (GDD 11.2) + per-world board colours.
 const PAL = {
   wood: '#c98a52', woodDark: '#8f5a30', felt: 0x35a583, road: 0xf7dfae, roadEdge: 0xa9682f,
   dot: 0xb98f55, stone: 0x66708a, stoneTop: 0x8892aa,
   point: '#ff5a5f', pointDark: '#d93a4c', solved: '#b9ffd9', solvedDark: '#35c98d',
   glow: 0x9dffd0, gold: '#ffc93c', ivory: '#f8f1df', pip: '#2b2433',
 };
+const WORLD_PAL = {
+  0: { felt: 0x2e3f8f, road: 0xf3e6c8, roadEdge: 0x8a6a3a, dot: 0xb39a6a, stone: 0x4d5680, stoneTop: 0x6c76a3, wood: '#7b5a9e' }, // daily challenge
+  1: { felt: 0x35a583, road: 0xf7dfae, roadEdge: 0xa9682f, dot: 0xb98f55, stone: 0x66708a, stoneTop: 0x8892aa, wood: '#c98a52' },
+  2: { felt: 0x3f8ccf, road: 0xf4ead6, roadEdge: 0x8d6d4a, dot: 0xb4a07e, stone: 0x5d6b7d, stoneTop: 0x7f8ea3, wood: '#b9875c' },
+  3: { felt: 0x8a5cc9, road: 0xfbe7d2, roadEdge: 0x93603e, dot: 0xc09a7c, stone: 0x5a4f78, stoneTop: 0x7d70a3, wood: '#a8754e' },
+  4: { felt: 0x2b3f7a, road: 0xe9e4f5, roadEdge: 0x5e5a8a, dot: 0xa49fc4, stone: 0x45507a, stoneTop: 0x66729e, wood: '#6f5a8f' },
+  5: { felt: 0xc2603e, road: 0xf8e2c0, roadEdge: 0x8e4f2c, dot: 0xc69a6a, stone: 0x6d5a52, stoneTop: 0x8f7a70, wood: '#9e6a44' },
+};
+const ARROW_ROT = { U: 0, L: Math.PI / 2, D: Math.PI, R: -Math.PI / 2 };
 
 // ---------- tiny tween system ----------
 const ease = {
@@ -73,17 +82,82 @@ const PIPS = {
   6: [[0, 0], [2, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
 };
 
-function diceFaceTexture(n) {
+function diceFaceTexture(n, skin = { body: PAL.ivory, pip: PAL.pip }) {
   return canvasTex(256, (g, s) => {
-    g.fillStyle = PAL.ivory; g.fillRect(0, 0, s, s);
+    g.fillStyle = skin.body; g.fillRect(0, 0, s, s);
     const shade = g.createRadialGradient(s / 2, s / 2, s * 0.2, s / 2, s / 2, s * 0.75);
-    shade.addColorStop(0, 'rgba(255,255,255,0)'); shade.addColorStop(1, 'rgba(190,160,110,0.28)');
+    shade.addColorStop(0, 'rgba(255,255,255,0)'); shade.addColorStop(1, 'rgba(60,40,20,0.22)');
     g.fillStyle = shade; g.fillRect(0, 0, s, s);
+    if (skin.sparkle) {
+      let seed = n * 97;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let i = 0; i < 40; i++) {
+        g.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.6})`;
+        g.beginPath(); g.arc(rnd() * s, rnd() * s, 0.6 + rnd() * 2.2, 0, Math.PI * 2); g.fill();
+      }
+    }
     const pos = [0.27, 0.5, 0.73];
     for (const [cx, cy] of PIPS[n]) {
       const x = pos[cx] * s, y = pos[cy] * s, r = s * (n === 1 ? 0.13 : 0.092);
-      g.fillStyle = PAL.pip; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = skin.pip; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
       g.fillStyle = 'rgba(255,255,255,0.22)'; g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+
+/** Tile art for the new mechanics (also shown on the intro cards). */
+function mechTexture(kind, n) {
+  return canvasTex(256, (g, s) => {
+    g.clearRect(0, 0, s, s);
+    const pad = 14, c = s / 2;
+    const tile = (top, bottom, stroke) => {
+      const grad = g.createLinearGradient(0, 0, 0, s);
+      grad.addColorStop(0, top); grad.addColorStop(1, bottom);
+      roundRect(g, pad, pad, s - pad * 2, s - pad * 2, 44);
+      g.fillStyle = grad; g.fill();
+      g.lineWidth = 10; g.strokeStyle = stroke; g.stroke();
+    };
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    if (kind === 'stop') {
+      tile('#ffd36b', '#f0a12a', 'rgba(255,255,255,0.8)');
+      g.beginPath();
+      for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + (i * Math.PI) / 4; g.lineTo(c + Math.cos(a) * 78, c + Math.sin(a) * 78); }
+      g.closePath(); g.fillStyle = '#7a3d0a'; g.fill();
+      g.fillStyle = '#fff'; roundRect(g, c - 48, c - 13, 96, 26, 13); g.fill();
+    } else if (kind === 'arrow') {
+      tile('#7ef0df', '#22b9b0', 'rgba(255,255,255,0.8)');
+      g.strokeStyle = '#ffffff'; g.lineWidth = 26;
+      g.beginPath(); g.moveTo(c - 58, c + 6); g.lineTo(c, c - 52); g.lineTo(c + 58, c + 6); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 18;
+      g.beginPath(); g.moveTo(c - 40, c + 62); g.lineTo(c, c + 22); g.lineTo(c + 40, c + 62); g.stroke();
+    } else if (kind === 'portalT' || kind === 'portalU') {
+      const [a, b] = kind === 'portalT' ? ['#c58bff', '#6a2fd1'] : ['#ffb36b', '#e4602a'];
+      const grad = g.createRadialGradient(c, c, 8, c, c, s / 2 - pad);
+      grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.25, a); grad.addColorStop(1, b);
+      g.fillStyle = grad; g.beginPath(); g.arc(c, c, s / 2 - pad, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 9;
+      for (let i = 0; i < 3; i++) {
+        g.beginPath(); g.arc(c, c, 30 + i * 28, i * 2.1, i * 2.1 + Math.PI * 1.1); g.stroke();
+      }
+    } else if (kind === 'crumble') {
+      const grad = g.createLinearGradient(0, 0, 0, s);
+      grad.addColorStop(0, '#f2d3a3'); grad.addColorStop(1, '#cf9f66');
+      g.fillStyle = grad; roundRect(g, 4, 4, s - 8, s - 8, 30); g.fill();
+      g.strokeStyle = '#8a5a2c'; g.lineWidth = 7;
+      g.beginPath(); g.moveTo(40, 70); g.lineTo(100, 110); g.lineTo(90, 160); g.lineTo(140, 200);
+      g.moveTo(100, 110); g.lineTo(170, 90); g.lineTo(220, 120);
+      g.moveTo(170, 90); g.lineTo(160, 40); g.moveTo(140, 200); g.lineTo(200, 220); g.stroke();
+    } else if (kind === 'gate') {
+      tile('#7fb6ff', '#3769d6', 'rgba(255,255,255,0.85)');
+      g.fillStyle = 'rgba(255,255,255,0.95)';
+      roundRect(g, c - 66, c - 62, 132, 132, 22); g.fill();
+      const pos = [0.32, 0.5, 0.68];
+      for (const [px, py] of PIPS[n]) {
+        g.fillStyle = '#2445a0'; g.beginPath(); g.arc(pos[px] * s, (pos[py] + 0.03) * s, s * 0.055, 0, Math.PI * 2); g.fill();
+      }
+      // small padlock
+      g.fillStyle = '#ffc93c'; roundRect(g, s - 82, 22, 52, 40, 8); g.fill();
+      g.strokeStyle = '#ffc93c'; g.lineWidth = 8; g.beginPath(); g.arc(s - 56, 24, 15, Math.PI, 0); g.stroke();
     }
   });
 }
@@ -214,7 +288,11 @@ export class View {
     this.woodTex = woodTexture();
     this.glowTex = glowTexture();
     this.tileTex = { end: tileTexture('end'), start: tileTexture('start') };
-    for (let n = 1; n <= 6; n++) { this.tileTex['p' + n] = tileTexture('point', n); this.tileTex['s' + n] = tileTexture('solved', n); }
+    for (let n = 1; n <= 6; n++) {
+      this.tileTex['p' + n] = tileTexture('point', n); this.tileTex['s' + n] = tileTexture('solved', n);
+      this.tileTex['g' + n] = mechTexture('gate', n);
+    }
+    for (const k of ['stop', 'arrow', 'portalT', 'portalU', 'crumble']) this.tileTex[k] = mechTexture(k);
 
     this.boardGroup = new THREE.Group();
     scene.add(this.boardGroup);
@@ -227,11 +305,27 @@ export class View {
   }
 
   // ---------- construction ----------
+  /** Dice skin: { body, pip, metal?, sparkle? } (meta.js SKINS). */
+  setSkin(skin) {
+    if (this.skinId === skin.id) return;
+    this.skinId = skin.id;
+    const order = [3, 4, 1, 6, 2, 5]; // +x -x +y -y +z -z
+    const old = this.diceMesh.material;
+    this.diceMesh.material = order.map((n) => new THREE.MeshPhysicalMaterial({
+      map: diceFaceTexture(n, skin), roughness: skin.metal ? 0.3 : 0.22, metalness: skin.metal || 0, clearcoat: 1, clearcoatRoughness: 0.12,
+    }));
+    for (const m of old) { m.map?.dispose(); m.dispose(); }
+  }
+
+  /** PNG data URL of a tile's art, for UI cards. */
+  tileImage(key) { return this.tileTex[key]?.image.toDataURL() || ''; }
+
   _buildDice() {
     const order = [3, 4, 1, 6, 2, 5]; // +x -x +y -y +z -z
     const mats = order.map((n) => new THREE.MeshPhysicalMaterial({
       map: diceFaceTexture(n), roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12,
     }));
+    this.skinId = 'ivory';
     const mesh = new THREE.Mesh(new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 5, 0.11), mats);
     mesh.castShadow = true;
     this.diceMesh = mesh;
@@ -280,11 +374,13 @@ export class View {
     const std = (opts) => new THREE.MeshStandardMaterial(opts);
     const add = (mesh, cast = false, receive = true) => { mesh.castShadow = cast; mesh.receiveShadow = receive; g.add(mesh); return mesh; };
 
+    const wp = WORLD_PAL[level.def.world ?? 1] || WORLD_PAL[1];
+
     // Board: wooden slab with a felt mat.
     this.woodTex.repeat.set(Math.max(1, w / 4), 1);
-    const base = add(new THREE.Mesh(new RoundedBoxGeometry(w + 1.3, 0.56, h + 1.3, 4, 0.16), std({ map: this.woodTex, roughness: 0.55 })), true);
+    const base = add(new THREE.Mesh(new RoundedBoxGeometry(w + 1.3, 0.56, h + 1.3, 4, 0.16), std({ map: this.woodTex, color: new THREE.Color(wp.wood).lerp(new THREE.Color('#ffffff'), 0.45), roughness: 0.55 })), true);
     base.position.y = -0.33;
-    const felt = add(new THREE.Mesh(new RoundedBoxGeometry(w + 0.5, 0.08, h + 0.5, 3, 0.04), std({ color: PAL.felt, roughness: 0.95 })));
+    const felt = add(new THREE.Mesh(new RoundedBoxGeometry(w + 0.5, 0.08, h + 0.5, 3, 0.04), std({ color: wp.felt, roughness: 0.95 })));
     felt.position.y = -0.04;
 
     // Roads (merged), with a darker carved edge underneath.
@@ -298,8 +394,10 @@ export class View {
       const c = level.cells[y * w + x];
       if (c === CELL.EMPTY) continue;
       this.cellPos(x, y, p);
-      box(roadGeos, ROAD_W, ROAD_Y, ROAD_W, p.x, ROAD_Y / 2, p.z);
-      box(edgeGeos, ROAD_W + 0.12, ROAD_Y * 0.55, ROAD_W + 0.12, p.x, ROAD_Y * 0.275, p.z);
+      if (c !== CELL.CRUMBLE) {
+        box(roadGeos, ROAD_W, ROAD_Y, ROAD_W, p.x, ROAD_Y / 2, p.z);
+        box(edgeGeos, ROAD_W + 0.12, ROAD_Y * 0.55, ROAD_W + 0.12, p.x, ROAD_Y * 0.275, p.z);
+      }
       for (const d of [DIRS.R, DIRS.D]) {
         if (!isRoadLike(x + d.dx, y + d.dy)) continue;
         const len = conn * 2 + 0.002;
@@ -312,15 +410,15 @@ export class View {
         dot.translate(p.x, ROAD_Y + 0.006, p.z); dotGeos.push(dot);
       } else if (c === CELL.OBSTACLE) {
         const rot = ((x * 7 + y * 13) % 5 - 2) * 0.09;
-        const rock = add(new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.56, 0.7, 3, 0.1), std({ color: PAL.stone, roughness: 0.8 })), true);
+        const rock = add(new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.56, 0.7, 3, 0.1), std({ color: wp.stone, roughness: 0.8 })), true);
         rock.position.set(p.x, ROAD_Y + 0.28, p.z); rock.rotation.y = rot;
-        const cap = add(new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.16, 0.44, 2, 0.06), std({ color: PAL.stoneTop, roughness: 0.7 })), true);
+        const cap = add(new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.16, 0.44, 2, 0.06), std({ color: wp.stoneTop, roughness: 0.7 })), true);
         cap.position.set(p.x, ROAD_Y + 0.62, p.z); cap.rotation.y = rot + 0.5;
       }
     }
-    add(new THREE.Mesh(mergeGeometries(edgeGeos), std({ color: PAL.roadEdge, roughness: 0.7 })));
-    add(new THREE.Mesh(mergeGeometries(roadGeos), std({ color: PAL.road, roughness: 0.6 })), false);
-    if (dotGeos.length) add(new THREE.Mesh(mergeGeometries(dotGeos), std({ color: PAL.dot, roughness: 0.6 })));
+    add(new THREE.Mesh(mergeGeometries(edgeGeos), std({ color: wp.roadEdge, roughness: 0.7 })));
+    add(new THREE.Mesh(mergeGeometries(roadGeos), std({ color: wp.road, roughness: 0.6 })), false);
+    if (dotGeos.length) add(new THREE.Mesh(mergeGeometries(dotGeos), std({ color: wp.dot, roughness: 0.6 })));
 
     // Decal tiles: start, end, points.
     const decal = (tex, x, y, size = 0.84) => {
@@ -355,6 +453,34 @@ export class View {
       glow: glow(pt.x, pt.y, PAL.glow),
       solved: false, n: pt.n, x: pt.x, y: pt.y,
     }));
+
+    // Mechanic tiles.
+    this.portalTiles = []; this.crumbleTiles = []; this.arrowTiles = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, c = level.cells[i];
+      if (c === CELL.STOP) decal(this.tileTex.stop, x, y, 0.8);
+      else if (c === CELL.ARROW) {
+        const m = decal(this.tileTex.arrow, x, y, 0.8);
+        m.rotation.z = ARROW_ROT[DIR_KEYS[level.arrowAt[i]]];
+        this.arrowTiles.push(m);
+      } else if (c === CELL.PORTAL) {
+        const key = level.def.grid[y][x] === 'T' ? 'portalT' : 'portalU';
+        const m = decal(this.tileTex[key], x, y, 0.86);
+        m.material.emissive.set(key === 'portalT' ? 0x6a2fd1 : 0xe4602a); m.material.emissiveIntensity = 0.5;
+        this.portalTiles.push({ mesh: m, glow: glow(x, y, key === 'portalT' ? 0xc58bff : 0xffb36b, 1.3) });
+      } else if (c === CELL.GATE) decal(this.tileTex['g' + level.gateAt[i]], x, y, 0.84);
+      else if (c === CELL.CRUMBLE) {
+        const slab = new THREE.Group();
+        const body = new THREE.Mesh(new RoundedBoxGeometry(ROAD_W + 0.08, 0.1, ROAD_W + 0.08, 2, 0.03), std({ color: 0xd9ad74, roughness: 0.8, transparent: true }));
+        body.castShadow = true; body.receiveShadow = true; body.position.y = 0.05;
+        const top = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W + 0.06, ROAD_W + 0.06), std({ map: this.tileTex.crumble, transparent: true, roughness: 0.8 }));
+        top.rotation.x = -Math.PI / 2; top.position.y = 0.101;
+        slab.add(body, top);
+        this.cellPos(x, y, slab.position); slab.position.y = ROAD_Y - 0.1 + 0.01;
+        g.add(slab);
+        this.crumbleTiles[level.crumbleAt[i]] = { group: slab, mats: [body.material, top.material], y0: slab.position.y, gone: false };
+      }
+    }
 
     // Shadow frustum + camera.
     const span = Math.max(w, h) / 2 + 2.2;
@@ -425,12 +551,22 @@ export class View {
   // ---------- animations ----------
   /** Roll through the given steps. onStep(step, index) fires as each cell is reached. */
   async rollSteps(steps, dir, onStep) {
-    const { axis, sign } = ROLL_AXIS[dir];
     const q0 = new THREE.Quaternion(), qr = new THREE.Quaternion();
     const from = new THREE.Vector3(), to = new THREE.Vector3();
     const dur = steps.length === 1 ? 0.17 : Math.max(0.085, 0.13 - steps.length * 0.006);
     for (let i = 0; i < steps.length; i++) {
       const st = steps[i];
+      if (st.crumble !== undefined) this.collapse(st.crumble);
+      if (st.teleport) {
+        // Shrink into the portal, reappear at its twin.
+        await this.tweens.add(0.14, (t) => this.dice.scale.setScalar(1 - t * 0.95), ease.inOut);
+        this.setDice(st.x, st.y, st.o);
+        await this.tweens.add(0.16, (t) => this.dice.scale.setScalar(0.05 + t * 0.95), ease.backOut);
+        this.dice.scale.setScalar(1);
+        if (onStep) onStep(st, i);
+        continue;
+      }
+      const { axis, sign } = ROLL_AXIS[st.dir || dir];
       from.copy(this.dice.position); from.y = DICE_BASE + DICE_HALF;
       this.cellPos(st.x, st.y, to); to.y = from.y;
       q0.copy(this.diceMesh.quaternion);
@@ -445,6 +581,57 @@ export class View {
       this.setDice(st.x, st.y, st.o);
       if (onStep) onStep(st, i);
     }
+  }
+
+  /** A crumble tile falls away. */
+  collapse(index) {
+    const ct = this.crumbleTiles[index];
+    if (!ct || ct.gone) return;
+    ct.gone = true;
+    const p = ct.group.position;
+    for (let i = 0; i < 6; i++) {
+      const a = Math.random() * Math.PI * 2;
+      this._emit(p.x + Math.cos(a) * 0.25, ROAD_Y, p.z + Math.sin(a) * 0.25, Math.cos(a) * 0.4, -0.4, Math.sin(a) * 0.4, 0xd9ad74, 0.6, 1.4);
+    }
+    this.tweens.add(0.55, (t) => {
+      if (!ct.gone) return;
+      ct.group.position.y = ct.y0 - t * t * 1.4;
+      ct.group.rotation.z = t * 0.5; ct.group.rotation.x = t * 0.3;
+      for (const m of ct.mats) m.opacity = 1 - t;
+    }, ease.linear).then(() => { if (ct.gone) ct.group.visible = false; });
+  }
+
+  /** Snap the board to a state (used by undo). */
+  syncState(state) {
+    this.tweens.clear();
+    this.dice.scale.set(1, 1, 1);
+    this.setDice(state.x, state.y, state.o);
+    this.pointTiles.forEach((pt, i) => {
+      const solved = !!(state.mask & (1 << i));
+      pt.solved = solved;
+      pt.tile.material.map = pt.tile.material.emissiveMap = this.tileTex[(solved ? 's' : 'p') + pt.n];
+      pt.tile.material.emissive.set(solved ? 0x3ad49a : 0x000000);
+      pt.tile.material.color.set(0xffffff);
+      pt.tile.material.needsUpdate = true;
+      pt.tile.scale.setScalar(1);
+      pt.glow.material.opacity = solved ? 0.28 : 0;
+      pt.glow.scale.setScalar(1);
+    });
+    this.crumbleTiles.forEach((ct, i) => {
+      if (!ct) return;
+      ct.gone = !!((state.gone || 0) & (1 << i));
+      ct.group.visible = !ct.gone;
+      ct.group.position.y = ct.y0; ct.group.rotation.set(0, 0, 0);
+      for (const m of ct.mats) m.opacity = 1;
+    });
+    for (const p of this.particles) { p.mesh.visible = false; p.busy = false; }
+  }
+
+  /** Screen position (CSS px) of a board cell, for UI overlays. */
+  screenPos(x, y) {
+    const v = this.cellPos(x, y); v.y = DICE_BASE + DICE_HALF;
+    v.project(this.camera);
+    return { x: (v.x * 0.5 + 0.5) * this.width, y: (-v.y * 0.5 + 0.5) * this.height };
   }
 
   /** Dust + squash when the dice comes to rest. */
@@ -570,6 +757,10 @@ export class View {
       }
       this.flag.rotation.y = Math.sin(t * 2.2) * 0.35;
       for (const pt of this.pointTiles) if (pt.solved) pt.tile.material.emissiveIntensity = 0.45 + Math.sin(t * 3 + pt.x) * 0.15;
+      for (const pp of this.portalTiles) {
+        pp.mesh.rotation.z = t * 1.6;
+        pp.glow.material.opacity = 0.35 + Math.sin(t * 3) * 0.12;
+      }
       if (this.hintDir) {
         const { dx, dy } = DIRS[this.hintDir];
         const base = this.cellPos(this.diceCell.x, this.diceCell.y);

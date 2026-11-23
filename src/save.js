@@ -1,9 +1,14 @@
-// Local save: progress, stars, pips, settings (GDD 12).
+// Local save: progress, stars, economy, meta and live-ops state (GDD 12).
 
-const KEY = 'dice-the-way.save.v1';
-export const STARTER_PIPS = 60;
+const KEY = 'dice-the-way.save.v2';
+const OLD_KEY = 'dice-the-way.save.v1';
+export const STARTER_PIPS = 100;
 export const BUY_MOVES_PRICE = 30;
 export const EXTRA_MOVES = 5;
+
+function defaultLang() {
+  try { return (navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en'; } catch { return 'en'; }
+}
 
 function defaults() {
   return {
@@ -12,17 +17,33 @@ function defaults() {
     bestMoves: {},  // levelId -> fewest moves used
     pips: STARTER_PIPS,
     tutorialSkipped: false,
-    settings: { sound: true, music: true, vibration: true, lang: 'en' },
+    inventory: { undo: 3, hint: 2 },
+    skins: { owned: ['ivory'], equipped: 'ivory' },
+    chests: [],                 // star milestones already opened
+    seen: {},                   // intro cards already shown (mechanics, boosters, features)
+    winStreak: 0,
+    daily: { last: '', streak: 0 },               // login calendar
+    missions: { day: '', list: [], bonus: false },
+    challenge: { day: '', done: false, streak: 0, lastDone: '' },
+    event: { week: '', tokens: 0, claimed: [] },
+    shop: { day: '', freeAds: 0 },
+    stats: { wins: 0, points: 0, perfect: 0, moves: 0, challenges: 0 },
+    settings: { sound: true, music: true, vibration: true, lang: defaultLang() },
   };
 }
 
 function load() {
   const d = defaults();
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+    let raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (!raw) raw = JSON.parse(localStorage.getItem(OLD_KEY) || 'null'); // v1 -> v2 migration
     if (raw && typeof raw === 'object') {
-      Object.assign(d, raw);
-      d.settings = { ...defaults().settings, ...(raw.settings || {}) };
+      for (const k of Object.keys(d)) {
+        if (!(k in raw)) continue;
+        const v = raw[k];
+        d[k] = v && typeof v === 'object' && !Array.isArray(v) && d[k] && typeof d[k] === 'object' && !Array.isArray(d[k])
+          ? { ...d[k], ...v } : v;
+      }
     }
   } catch { /* storage unavailable or corrupt: start fresh */ }
   return d;

@@ -1,6 +1,6 @@
 # Dice The Way — Game Design Document
 
-**Version:** 0.1 (draft from initial brief)
+**Version:** 0.2 (content, meta and live-ops update — see section 17 and docs/RESEARCH.md)
 **Platforms:** Web (desktop + mobile browser), Android, iOS
 **Genre:** Grid-based puzzle, hybrid casual
 **Working title:** Dice The Way
@@ -342,3 +342,72 @@ Both are references for mood and presentation only. No assets, names, or layouts
 - **Best case:** the minimum move count that solves the level.
 - **Move limit:** maximum moves allowed in a level.
 - **Pips:** soft currency (placeholder name).
+
+---
+
+## 17. v0.2 Update (supersedes earlier sections where they differ)
+
+Research notes behind these changes: `docs/RESEARCH.md`.
+
+### 17.1 New tiles (grid characters in `src/core/rules.js`)
+
+| Tile | Char | Rule |
+|---|---|---|
+| Stop pad | `x` | The dice always stops on it. |
+| Arrow | `^ v < >` | The dice turns to the arrow's direction and keeps rolling. Stops on the arrow if that way is blocked. |
+| Portal pair | `T`, `U` (two of each) | Rolling in sends the dice to the twin; it keeps rolling the same way. Orientation does not change in the jump. |
+| Crumble | `c` | Can be crossed once; it falls when the dice leaves it, then blocks. |
+| Face lock | `a`–`f` (1–6) | The dice can roll onto it only if the arriving top face is that number. |
+
+Arrow/portal circuits stop the dice where the path would repeat. The solver state now includes fallen crumble tiles.
+
+### 17.2 Content: 50 levels, 5 worlds, daily challenges
+
+| World | Levels | New tile | Intro level |
+|---|---|---|---|
+| 1 Maple Table | 1–10 | — (tutorial 1–3) | — |
+| 2 Harbor Deck | 11–20 | Stop pad | 11 |
+| 3 Violet Arcade | 21–30 | Arrow | 21 |
+| 4 Star Observatory | 31–40 | Portal | 31 |
+| 5 Ember Ruins | 41–50 | Crumble (41), Face lock (46) | 41, 46 |
+
+- Difficulty is a saw-tooth: each world starts with a small intro board and ramps to 8×8 with 4 points; later worlds mix earlier tiles in.
+- Move limit: generous on intros and early levels; tighter on the last 3 levels of a world.
+- 14 daily challenge boards (`src/data/challenges.json`), mixed tiles, limit = best + 2. One per day, rotating.
+- Every level is generated and validated offline (`npm run levels`, `npm test`): solvable, stored solution replays, every placed tile is used by the solution, intro levels need their tile to be solvable in the best case.
+
+### 17.3 Tutorial and onboarding
+
+- First launch goes straight into level 1. Levels 1–2 are guided and only accept the shown direction (swipe-hand animation + coach bubble + board arrow). Level 3 is guided but free, so the player can see a mismatch.
+- HUD spotlights: moves (L1), points (L2), dice compass (L3).
+- New tiles: intro card with the tile art, plus a free first-move hint on the intro level.
+- Boosters and live-ops features unlock by level, each with a one-time card. Tutorial can be skipped and replayed from Settings.
+
+### 17.4 HUD and layout
+
+- Top: pause · level + world · replay. Status capsule: moves left, point chips, **dice compass** (top face + next top face for each direction).
+- Bottom (thumb reach): Undo and Hint boosters with stock badges; "Best · Used" in between. Coach bubble floats above.
+- Pause menu: sound/music/vibration toggles, resume, replay, home (warns about losing the hot streak).
+
+### 17.5 Meta
+
+- **Boosters:** Undo (start 3) and Hint (start 2). Out of stock → buy one for 20 / 30 Pips.
+- **Hot streak:** consecutive wins give +1/+2/+3 start moves. Lost when giving up after failing or quitting mid-level. Unlocks after level 9.
+- **Star road:** 9 chests at 8 → 150 stars (Pips, boosters, 4 dice skins).
+- **Dice skins:** 10 skins (Pips, star road, Dice Pass). The equipped skin is used for the 3D dice.
+- **Shop:** free Pips by ad (3/day), booster packs for Pips, IAP Pip packs (placeholders).
+
+### 17.6 Live-ops
+
+| Feature | Unlocks after | Reset | Rewards |
+|---|---|---|---|
+| Daily gift | L2 | local midnight | 7-day calendar, day 7 = 80 Pips + 2 hints; missing a day restarts |
+| Daily missions | L5 | local midnight | 3 from a pool (win, stars, 3★, points, moves, no boosters, streak, challenge) + bonus chest |
+| Dice Pass | L8 | Monday 00:00 local | Tickets: stars on first clear, 1 on replay, 5 for the challenge; 10 tiers, last = Sunset skin |
+| Daily challenge | L12 | local midnight | 60 Pips (+10/day of challenge streak, max +50) + 5 tickets |
+
+Home shows red dots on every entry point with something to claim, and timers under each rail button. All state is local (`save.js`, key `dice-the-way.save.v2`, migrates v1).
+
+### 17.7 Still out of scope
+
+Leaderboards, team events, cloud save and real purchases need a backend and remain placeholders.

@@ -68,6 +68,12 @@ export const sfx = {
   star(i = 0) { if (on()) tone([1046.5, 1318.5, 1568][i] || 1568, 0.4, { gain: 0.2 }); },
   win() { if (on()) [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.45, { type: 'triangle', gain: 0.2, when: i * 0.1 })); },
   fail() { if (on()) [392, 329.6, 261.6].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.18, when: i * 0.16 })); },
+  portal() { if (on()) { tone(520, 0.28, { type: 'sine', gain: 0.14, slideTo: 1560 }); tone(780, 0.3, { type: 'triangle', gain: 0.06, when: 0.05, slideTo: 2080 }); } },
+  crumble() { if (on()) { noise(0.22, 420, 0.8, 0.45); tone(90, 0.2, { type: 'triangle', gain: 0.15, slideTo: 50 }); } },
+  whoosh() { if (on()) noise(0.12, 2600, 0.9, 0.25); },
+  pad() { if (on()) { tone(660, 0.09, { type: 'square', gain: 0.05 }); tone(440, 0.14, { type: 'triangle', gain: 0.12, when: 0.05 }); } },
+  undo() { if (on()) tone(700, 0.16, { type: 'triangle', gain: 0.12, slideTo: 420 }); },
+  open() { if (on()) [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.35, { type: 'triangle', gain: 0.14, when: i * 0.06 })); },
   coin() { if (on()) { tone(1568, 0.08, { type: 'square', gain: 0.06 }); tone(2093, 0.25, { type: 'square', gain: 0.06, when: 0.07 }); } },
 };
 

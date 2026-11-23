@@ -1,11 +1,7 @@
 // Breadth-first solver over (cell, orientation, solved mask) — GDD section 12.
 
-import { DIR_KEYS, orientationId } from './dice.js';
-import { slide, initialState } from './rules.js';
-
-function keyOf(level, s) {
-  return ((s.y * level.w + s.x) * 36 + orientationId(s.o)) * (level.fullMask + 1) + s.mask;
-}
+import { DIR_KEYS } from './dice.js';
+import { slide, initialState, stateKey as keyOf } from './rules.js';
 
 /**
  * Shortest solution from `from` (default: level start).

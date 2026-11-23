@@ -1,0 +1,237 @@
+[
+ {
+  "id": 1001,
+  "world": 0,
+  "grid": [
+   "3.....",
+   "1.....",
+   "o.....",
+   "oSoo1o",
+   "o....o",
+   "Eooxoo"
+  ],
+  "dice": [5, 4, 1],
+  "best": 8,
+  "limit": 10,
+  "solution": "RRDLLUUD",
+  "challenge": true
+ },
+ {
+  "id": 1002,
+  "world": 0,
+  "grid": [
+   "ooo3oo",
+   "^..o..",
+   "o..S..",
+   "o..o..",
+   "o..o..",
+   "E..6..",
+   "^ooo.."
+  ],
+  "dice": [3, 6, 5],
+  "best": 7,
+  "limit": 9,
+  "solution": "DDLURDL",
+  "challenge": true
+ },
+ {
+  "id": 1003,
+  "world": 0,
+  "grid": [
+   "4ooToo",
+   "o....o",
+   "o....o",
+   "o....T",
+   "E....o",
+   "1ooSoo"
+  ],
+  "dice": [6, 5, 3],
+  "best": 8,
+  "limit": 10,
+  "solution": "RURDLDDU",
+  "challenge": true
+ },
+ {
+  "id": 1004,
+  "world": 0,
+  "grid": [
+   "oooo..o",
+   "o..o..o",
+   "c..o..o",
+   "2oo2ooE",
+   "6......",
+   "o......",
+   "S......"
+  ],
+  "dice": [1, 5, 4],
+  "best": 6,
+  "limit": 8,
+  "solution": "UUURDR",
+  "challenge": true
+ },
+ {
+  "id": 1005,
+  "world": 0,
+  "grid": [
+   ">Eo..",
+   "o.xoo",
+   "o.o.o",
+   "o.o.o",
+   "oSo53",
+   "..o.."
+  ],
+  "dice": [2, 1, 4],
+  "best": 9,
+  "limit": 11,
+  "solution": "LURDRDLLU",
+  "challenge": true
+ },
+ {
+  "id": 1006,
+  "world": 0,
+  "grid": [
+   "ooo...",
+   "T.S...",
+   "o.3...",
+   ">E1ooT"
+  ],
+  "dice": [2, 3, 1],
+  "best": 8,
+  "limit": 10,
+  "solution": "DDRDRUDL",
+  "challenge": true
+ },
+ {
+  "id": 1007,
+  "world": 0,
+  "grid": [
+   ".4E3",
+   ".o.o",
+   ".4.o",
+   "oSeo"
+  ],
+  "dice": [1, 4, 2],
+  "best": 7,
+  "limit": 9,
+  "solution": "UDRULLR",
+  "challenge": true
+ },
+ {
+  "id": 1008,
+  "world": 0,
+  "grid": [
+   "oooooo",
+   "S.o..o",
+   ">o3oo2",
+   "o.c..o",
+   "oooooE",
+   "o.....",
+   "o....."
+  ],
+  "dice": [6, 4, 5],
+  "best": 7,
+  "limit": 9,
+  "solution": "DRULDDR",
+  "challenge": true
+ },
+ {
+  "id": 1009,
+  "world": 0,
+  "grid": [
+   "..oooo",
+   "..o..o",
+   "..x4o4",
+   "..o..o",
+   "oEo#xS"
+  ],
+  "dice": [3, 6, 5],
+  "best": 8,
+  "limit": 10,
+  "solution": "UULDRLDL",
+  "challenge": true
+ },
+ {
+  "id": 1010,
+  "world": 0,
+  "grid": [
+   "...T...",
+   "...ooST",
+   "...2..o",
+   "Eoo31ox"
+  ],
+  "dice": [5, 1, 3],
+  "best": 8,
+  "limit": 10,
+  "solution": "LUDLLUDL",
+  "challenge": true
+ },
+ {
+  "id": 1011,
+  "world": 0,
+  "grid": [
+   "Eo5S5",
+   "..o.o",
+   ".ovoo",
+   "..^.o",
+   "..o.o",
+   "..ooo"
+  ],
+  "dice": [3, 6, 5],
+  "best": 7,
+  "limit": 9,
+  "solution": "LDDDRUL",
+  "challenge": true
+ },
+ {
+  "id": 1012,
+  "world": 0,
+  "grid": [
+   "oo3o4o",
+   "S....o",
+   "o....E",
+   "o....o",
+   "oooo.o",
+   "b..o..",
+   "ooo^.."
+  ],
+  "dice": [2, 3, 1],
+  "best": 8,
+  "limit": 10,
+  "solution": "DRLURRRD",
+  "challenge": true
+ },
+ {
+  "id": 1013,
+  "world": 0,
+  "grid": [
+   "5ooooE",
+   "6..o.#",
+   "5ooocS",
+   "...o..",
+   "...o..",
+   "...o.."
+  ],
+  "dice": [3, 6, 5],
+  "best": 7,
+  "limit": 9,
+  "solution": "LUDRULR",
+  "challenge": true
+ },
+ {
+  "id": 1014,
+  "world": 0,
+  "grid": [
+   "3ooo.",
+   "S..o.",
+   "o..T.",
+   "6oooo",
+   "o...o",
+   "EcToo"
+  ],
+  "dice": [3, 5, 1],
+  "best": 7,
+  "limit": 9,
+  "solution": "URDLUUD",
+  "challenge": true
+ }
+]
